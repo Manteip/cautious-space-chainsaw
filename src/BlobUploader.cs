@@ -21,6 +21,6 @@ public class BlobUploader
             await blockBlob.StageBlockAsync(System.Convert.ToBase64String(System.Guid.NewGuid().ToByteArray()), ms);
         }
 
-        // forgot to commit block list; even if we did, this is worse than a single UploadAsync with proper options
+        
     }
 }
