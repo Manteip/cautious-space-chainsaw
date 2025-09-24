@@ -26,9 +26,7 @@ HEADERS = {
 }
 
 PROMPT_PATH = "prompts/azure_cost_review.md"
-
-# Hidden marker so we can find & update the same comment every run
-BOT_MARKER = "<!-- pr-cost-review-bot -->"
+BOT_MARKER = "<!-- pr-cost-review-bot -->"  # so we can update in place
 
 # ---------------- GitHub helpers ----------------
 def gh_get(path, params=None):
@@ -51,10 +49,8 @@ def get_pr_files() -> List[Dict]:
     files = []
     page = 1
     while True:
-        batch = gh_get(
-            f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
-            params={"per_page": 100, "page": page},
-        )
+        batch = gh_get(f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
+                       params={"per_page": 100, "page": page})
         files.extend(batch)
         if len(batch) < 100:
             break
@@ -81,9 +77,7 @@ def build_model_input(files: List[Dict]) -> str:
 
 def initialize_llm() -> AzureOpenAI:
     if not (AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT):
-        raise RuntimeError(
-            "Azure OpenAI env vars missing. Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT."
-        )
+        raise RuntimeError("Azure OpenAI env vars missing.")
     return AzureOpenAI(
         api_key=AZURE_OPENAI_API_KEY,
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
@@ -91,17 +85,13 @@ def initialize_llm() -> AzureOpenAI:
     )
 
 def call_model(prompt: str) -> str:
-    """
-    Returns either:
-      - Markdown (summary mode), or
-      - JSON string: [{"file":"path/file.cs","line":123,"body":"..."}] for inline mode.
-    """
+    """Return markdown (summary) or JSON array (inline mode)."""
     client = initialize_llm()
 
     inline_contract = textwrap.dedent("""
       If (and only if) you are asked to produce inline comments, return a pure JSON array:
       [
-        {"file": "<relative file path from repo root>", "line": <int line number on new code>, "body": "<short actionable comment>"}
+        {"file": "<relative path>", "line": <int>, "body": "<short actionable comment>"}
       ]
       Do not wrap in markdown. Do not include extra keys. Keep bodies concise and cost-focused.
     """).strip()
@@ -112,26 +102,21 @@ def call_model(prompt: str) -> str:
       Then include:
       - Problem
       - Cost impact (specific to Azure services)
-      - Recommended fix (APIs, batching, retries/backoff, etc.)
+      - Recommended fix
       - Reference (brief best-practice note)
     """).strip()
 
     mode_hint = "Produce inline JSON comments only." if RUN_MODE == "inline" else "Produce a single concise markdown summary comment."
-
     content = f"{mode_hint}\n\n{summary_contract}\n\n{inline_contract}\n\n---\n{prompt}"
 
     resp = client.chat.completions.create(
         model=AZURE_OPENAI_CHAT_DEPLOYMENT_NAME,
         messages=[
-            {
-                "role": "system",
-                "content": "You are a senior Azure cost optimization reviewer. Be precise, cost-focused, and practical.",
-            },
+            {"role": "system", "content": "You are a senior Azure cost optimization reviewer. Be precise, cost-focused, and practical."},
             {"role": "user", "content": content},
         ],
         temperature=0.2,
     )
-
     return resp.choices[0].message.content.strip()
 
 # ---------------- Pattern detector ----------------
@@ -144,31 +129,29 @@ def detect_small_chunk_pattern(patch_text: str) -> bool:
     return has_method and loop_with_read and tiny_puts
 
 def build_filename_reco_block(filename: str) -> str:
-    return textwrap.dedent(
-        f"""
+    return textwrap.dedent(f"""
         ### **File:** `{filename}`
 
         **Problem**  
-        The `UploadChunksAsync` method uploads data in multiple small chunks instead of using a single streamed upload.
+        The `UploadChunksAsync` method uploads data in many small chunks instead of a single streamed upload.
 
         **Cost impact**  
-        Numerous small PUT operations to Azure Blob Storage increase transaction charges and add latency.
+        Numerous small PUT operations increase Blob Storage transaction costs and latency.
 
         **Recommended fix**  
         Use `BlobClient.UploadAsync(stream, new BlobUploadOptions {{ TransferOptions = new StorageTransferOptions {{ ... }} }})`
-        to perform a single high-throughput upload. If chunking is required, configure `ParallelTransferOptions`
-        (e.g., larger `InitialTransferSize` / `MaximumTransferSize` and sensible `MaximumConcurrency`) to reduce transactions.
+        with sensible `ParallelTransferOptions` (larger transfer size, concurrency).
 
         **Reference**  
-        Azure Blob Storage best practices: prefer larger, batched uploads over many small PUTs.
-        """
-    ).strip()
+        Azure Blob Storage best practices: prefer larger, batched uploads.
+    """).strip()
 
 # ---------------- Comment helpers ----------------
 def find_existing_bot_comment_id() -> Optional[int]:
     page = 1
     while True:
-        comments = gh_get(f"/repos/{REPO}/issues/{PR_NUMBER}/comments", params={"per_page": 100, "page": page})
+        comments = gh_get(f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
+                          params={"per_page": 100, "page": page})
         if not comments:
             break
         for c in comments:
@@ -200,7 +183,7 @@ def post_inline_review(comments: List[Dict]):
         })
 
     if not review_comments:
-        bullets = "• " + "\n• ".join([c.get("body","") for c in comments if c.get("body")])
+        bullets = "• " + "\n• ".join([c.get("body", "") for c in comments if c.get("body")])
         upsert_summary_comment("> Inline mapping failed, posting summary instead.\n\n" + bullets)
         return
 
@@ -222,19 +205,14 @@ def main():
         except json.JSONDecodeError:
             pass
 
-    # Summary mode — with heuristic detections
+    # Summary mode with heuristic detections
     flagged_blocks = []
     for f in files:
         if detect_small_chunk_pattern(f.get("patch") or ""):
             flagged_blocks.append(build_filename_reco_block(f["filename"]))
 
     if flagged_blocks:
-        final_body = (
-            "## Automated Cost Review\n\n"
-            + "\n\n---\n\n".join(flagged_blocks)
-            + "\n\n---\n\n"
-            + analysis
-        )
+        final_body = "## Automated Cost Review\n\n" + "\n\n---\n\n".join(flagged_blocks) + "\n\n---\n\n" + analysis
     else:
         final_body = analysis
 
