@@ -13,7 +13,7 @@ PR_NUMBER = os.getenv("PR_NUMBER")
 TOKEN = os.getenv("GITHUB_TOKEN")
 RUN_MODE = os.getenv("RUN_MODE", "summary").lower()  # "summary" | "inline"
 
-# ---------- Azure OpenAI (from your boss) ----------
+
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
