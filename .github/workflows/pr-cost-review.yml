@@ -1,5 +1,3 @@
-# 1) Overwrite the workflow file with the clean version
-cat > .github/workflows/pr-cost-review.yml <<'YAML'
 name: PR Cost Review
 
 on:
@@ -47,7 +45,3 @@ jobs:
           RUN_MODE: "summary"
         run: |
           python pr-bot/review.py
-YAML
-
-# 2) See if you are in a merge conflict state
-git status
