@@ -54,4 +54,5 @@ namespace Endpoint.Flash.Core.Extensions.Redis
         }
     }
 }
-//jdncen//
+        await blockBlob.CommitBlockListAsync(new List<string>()); // missing list of block IDs
+    }
