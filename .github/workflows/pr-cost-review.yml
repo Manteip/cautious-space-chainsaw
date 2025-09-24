@@ -1,1 +1,53 @@
-<paste the YAML above>
+# 1) Overwrite the workflow file with the clean version
+cat > .github/workflows/pr-cost-review.yml <<'YAML'
+name: PR Cost Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run PR cost review
+        env:
+          # GitHub provides this automatically
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # 🔐 Azure secrets (add in: Settings → Secrets and variables → Actions)
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+          # Your deployment name (e.g., "gpt-4o-mini")
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME }}
+
+          # Workflow context
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+          # Choose "summary" (single updating comment) or "inline" (line comments)
+          RUN_MODE: "summary"
+        run: |
+          python pr-bot/review.py
+YAML
+
+# 2) See if you are in a merge conflict state
+git status
