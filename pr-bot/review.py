@@ -13,7 +13,7 @@ PR_NUMBER = os.getenv("PR_NUMBER")
 TOKEN = os.getenv("GITHUB_TOKEN")
 RUN_MODE = os.getenv("RUN_MODE", "summary").lower()  # "summary" | "inline"
 
-# ---------- Azure OpenAI ----------
+
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
@@ -26,7 +26,13 @@ HEADERS = {
 }
 
 PROMPT_PATH = "prompts/azure_cost_review.md"
+
 BOT_MARKER = "<!-- pr-cost-review-bot -->"  # so we can update in place
+
+
+# Hidden marker so we can find & update the same comment every run
+BOT_MARKER = "<!-- pr-cost-review-bot -->"
+
 
 # ---------------- GitHub helpers ----------------
 def gh_get(path, params=None):
@@ -93,7 +99,11 @@ def call_model(prompt: str) -> str:
     inline_contract = textwrap.dedent("""
       If (and only if) you are asked to produce inline comments, return a pure JSON array:
       [
+
         {"file": "<relative path>", "line": <int>, "body": "<short actionable comment>"}
+
+        {"file": "<relative file path from repo root>", "line": <int line number on new code>, "body": "<short actionable comment>"}
+
       ]
       Do not wrap in markdown. Do not include extra keys. Keep bodies concise and cost-focused.
     """).strip()
@@ -109,6 +119,7 @@ def call_model(prompt: str) -> str:
     """).strip()
 
     mode_hint = "Produce inline JSON comments only." if RUN_MODE == "inline" else "Produce a single concise markdown summary comment."
+
     content = f"{mode_hint}\n\n{summary_contract}\n\n{inline_contract}\n\n---\n{prompt}"
 
     resp = client.chat.completions.create(
@@ -145,6 +156,7 @@ def build_filename_reco_block(filename: str) -> str:
         with sensible `ParallelTransferOptions` (larger transfer size, concurrency).
 
         **Reference**  
+
         Azure Blob Storage best practices: prefer larger, batched uploads.
     """).strip()
 
@@ -154,6 +166,26 @@ def find_existing_bot_comment_id() -> Optional[int]:
     while True:
         comments = gh_get(f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
                           params={"per_page": 100, "page": page})
+        if not comments:
+            break
+        for c in comments:
+            if BOT_MARKER in (c.get("body") or ""):
+                return c["id"]
+        if len(comments) < 100:
+            break
+        page += 1
+    return None
+
+
+        Azure Blob Storage best practices: prefer larger, batched uploads over many small PUTs.
+        """
+    ).strip()
+
+# ---------------- Comment helpers ----------------
+def find_existing_bot_comment_id() -> Optional[int]:
+    page = 1
+    while True:
+        comments = gh_get(f"/repos/{REPO}/issues/{PR_NUMBER}/comments", params={"per_page": 100, "page": page})
         if not comments:
             break
         for c in comments:
@@ -186,7 +218,11 @@ def post_inline_review(comments: List[Dict]):
         })
 
     if not review_comments:
+
         bullets = "• " + "\n• ".join([c.get("body", "") for c in comments if c.get("body")])
+
+        bullets = "• " + "\n• ".join([c.get("body","") for c in comments if c.get("body")])
+
         upsert_summary_comment("> Inline mapping failed, posting summary instead.\n\n" + bullets)
         return
 
