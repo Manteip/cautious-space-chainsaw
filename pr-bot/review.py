@@ -13,7 +13,7 @@ PR_NUMBER = os.getenv("PR_NUMBER")
 TOKEN = os.getenv("GITHUB_TOKEN")
 RUN_MODE = os.getenv("RUN_MODE", "summary").lower()  # "summary" | "inline"
 
-# ---------- Azure OpenAI (from your boss) ----------
+# ---------- Azure OpenAI ----------
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
@@ -26,7 +26,7 @@ HEADERS = {
 }
 
 PROMPT_PATH = "prompts/azure_cost_review.md"
-BOT_MARKER = "<!-- pr-cost-review-bot -->"  # single updating comment marker
+BOT_MARKER = "<!-- pr-cost-review-bot -->"  # so we can update in place
 
 # ---------------- GitHub helpers ----------------
 def gh_get(path, params=None):
@@ -121,7 +121,7 @@ def call_model(prompt: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ---------------- Pattern detector (example) ----------------
+# ---------------- Pattern detector ----------------
 def detect_small_chunk_pattern(patch_text: str) -> bool:
     if not patch_text:
         return False
@@ -148,7 +148,7 @@ def build_filename_reco_block(filename: str) -> str:
         Azure Blob Storage best practices: prefer larger, batched uploads.
     """).strip()
 
-# ---------------- Single-comment helpers ----------------
+# ---------------- Comment helpers ----------------
 def find_existing_bot_comment_id() -> Optional[int]:
     page = 1
     while True:
