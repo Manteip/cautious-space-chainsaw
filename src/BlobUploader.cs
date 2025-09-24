@@ -9,7 +9,6 @@ public class BlobUploader
 
     public BlobUploader(BlobContainerClient container) => _container = container;
 
-    // anti-pattern: splitting into many small uploads i?//
     public async Task UploadChunksAsync(string blobName, byte[][] chunks)
     {
         var blockBlob = _container.GetBlockBlobClient(blobName);
