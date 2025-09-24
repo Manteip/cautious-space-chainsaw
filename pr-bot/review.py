@@ -26,7 +26,7 @@ HEADERS = {
 }
 
 PROMPT_PATH = "prompts/azure_cost_review.md"
-BOT_MARKER = "<!-- pr-cost-review-bot -->"  # so we can update in place
+BOT_MARKER = "<!-- pr-cost-review-bot -->"  # single updating comment marker
 
 # ---------------- GitHub helpers ----------------
 def gh_get(path, params=None):
@@ -49,8 +49,10 @@ def get_pr_files() -> List[Dict]:
     files = []
     page = 1
     while True:
-        batch = gh_get(f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
-                       params={"per_page": 100, "page": page})
+        batch = gh_get(
+            f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
+            params={"per_page": 100, "page": page},
+        )
         files.extend(batch)
         if len(batch) < 100:
             break
@@ -102,7 +104,7 @@ def call_model(prompt: str) -> str:
       Then include:
       - Problem
       - Cost impact (specific to Azure services)
-      - Recommended fix
+      - Recommended fix (APIs, batching, retries/backoff, etc.)
       - Reference (brief best-practice note)
     """).strip()
 
@@ -119,7 +121,7 @@ def call_model(prompt: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ---------------- Pattern detector ----------------
+# ---------------- Pattern detector (example) ----------------
 def detect_small_chunk_pattern(patch_text: str) -> bool:
     if not patch_text:
         return False
@@ -146,7 +148,7 @@ def build_filename_reco_block(filename: str) -> str:
         Azure Blob Storage best practices: prefer larger, batched uploads.
     """).strip()
 
-# ---------------- Comment helpers ----------------
+# ---------------- Single-comment helpers ----------------
 def find_existing_bot_comment_id() -> Optional[int]:
     page = 1
     while True:
@@ -170,6 +172,7 @@ def upsert_summary_comment(body_md: str):
     else:
         gh_post(f"/repos/{REPO}/issues/{PR_NUMBER}/comments", {"body": body_with_marker})
 
+# ---------------- Inline review posting ----------------
 def post_inline_review(comments: List[Dict]):
     review_comments = []
     for c in comments:
@@ -205,7 +208,7 @@ def main():
         except json.JSONDecodeError:
             pass
 
-    # Summary mode with heuristic detections
+    # Summary mode — with heuristic detections
     flagged_blocks = []
     for f in files:
         if detect_small_chunk_pattern(f.get("patch") or ""):
