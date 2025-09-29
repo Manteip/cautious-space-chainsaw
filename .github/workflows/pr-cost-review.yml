@@ -27,13 +27,31 @@ jobs:
 
       - name: Run PR cost review
         env:
+          # GitHub provides this automatically
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # 🔐 Azure secrets (add in: Settings → Secrets and variables → Actions)
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+          # Your deployment name (e.g., "gpt-4o-mini")
+
+          # 🔐 Azure secrets (add these in repo Settings → Secrets and variables → Actions)
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+
           AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME }}
+
+          # Workflow context
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+
+
+          # Choose "summary" (single updating comment) or "inline" (line comments)
+
+          # Choose "summary" (one updating comment) or "inline" (attempt line comments)
+
           RUN_MODE: "summary"
         run: |
           python pr-bot/review.py
