@@ -55,10 +55,8 @@ def get_pr_files() -> List[Dict]:
     files = []
     page = 1
     while True:
-        batch = gh_get(
-            f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
-            params={"per_page": 100, "page": page},
-        )
+        batch = gh_get(f"/repos/{REPO}/pulls/{PR_NUMBER}/files",
+                       params={"per_page": 100, "page": page})
         files.extend(batch)
         if len(batch) < 100:
             break
@@ -114,7 +112,7 @@ def call_model(prompt: str) -> str:
       Then include:
       - Problem
       - Cost impact (specific to Azure services)
-      - Recommended fix (APIs, batching, retries/backoff, etc.)
+      - Recommended fix
       - Reference (brief best-practice note)
     """).strip()
 
@@ -204,7 +202,6 @@ def upsert_summary_comment(body_md: str):
     else:
         gh_post(f"/repos/{REPO}/issues/{PR_NUMBER}/comments", {"body": body_with_marker})
 
-# ---------------- Inline review posting ----------------
 def post_inline_review(comments: List[Dict]):
     review_comments = []
     for c in comments:
@@ -244,7 +241,7 @@ def main():
         except json.JSONDecodeError:
             pass
 
-    # Summary mode — with heuristic detections
+    # Summary mode with heuristic detections
     flagged_blocks = []
     for f in files:
         if detect_small_chunk_pattern(f.get("patch") or ""):
